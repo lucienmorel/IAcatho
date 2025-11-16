@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+venv/
+index_pdf.pkl
+temp_*.pdf
+*.pdf
+.DS_Store
