@@ -23,13 +23,19 @@ class Question(BaseModel):
     top_k: int = 3
 
 class MoteurRecherchePDF:
-    def __init__(self, model_name="sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"):
+    def __init__(self, model_name="sentence-transformers/paraphrase-multilingual-mpnet-base-v2"):
+        """
+        Utilise un modèle plus compact optimisé pour la RAM limitée
+        Alternative ultra-légère: all-MiniLM-L6-v2 (80MB au lieu de 420MB)
+        """
         print("🔄 Chargement du modèle d'embeddings...")
         from sentence_transformers import SentenceTransformer
-        self.model = SentenceTransformer(model_name)
+        # Charger avec des optimisations mémoire
+        self.model = SentenceTransformer(model_name, device='cpu')
+        self.model.max_seq_length = 256  # Réduire la longueur max pour économiser RAM
         self.chunks = []
         self.embeddings = None
-        self.metadata = []  # Pour stocker les numéros de page
+        self.metadata = []
         print("✅ Modèle chargé !")
     
     def extraire_texte_pdf(self, chemin_pdf):
@@ -136,12 +142,25 @@ app = FastAPI(title="Moteur de Recherche PDF")
 moteur = MoteurRecherchePDF()
 INDEX_FILE = "index_pdf.pkl"
 
-# Charger l'index au démarrage si disponible
+# Configuration : mettre le nom de votre PDF ici
+PDF_FILE = "mon_cours.pdf"  # CHANGEZ CE NOM avec votre fichier PDF
+
+# Au démarrage : charger l'index ou créer un nouvel index depuis le PDF
 if os.path.exists(INDEX_FILE):
     try:
+        print("📂 Index existant trouvé, chargement...")
         moteur.charger_index(INDEX_FILE)
     except Exception as e:
         print(f"⚠️  Impossible de charger l'index : {e}")
+        if os.path.exists(PDF_FILE):
+            print(f"🔄 Création d'un nouvel index depuis {PDF_FILE}...")
+            moteur.indexer_pdf(PDF_FILE, INDEX_FILE)
+elif os.path.exists(PDF_FILE):
+    print(f"📄 PDF trouvé : {PDF_FILE}")
+    print("🔄 Indexation automatique au démarrage (peut prendre 2-3 minutes)...")
+    moteur.indexer_pdf(PDF_FILE, INDEX_FILE)
+else:
+    print(f"⚠️  Aucun PDF trouvé. Placez votre PDF nommé '{PDF_FILE}' dans le dossier.")
 
 @app.get("/", response_class=HTMLResponse)
 async def interface():
@@ -314,12 +333,12 @@ async def interface():
                 <div id="status" class="status empty">Aucun PDF indexé</div>
             </div>
             
-            <div class="upload-section">
-                <h2 style="margin-bottom: 20px;">📤 Indexer un PDF</h2>
+            <div class="upload-section" id="uploadSection" style="display: none;">
+                <h2 style="margin-bottom: 20px;">📤 Indexer un PDF (optionnel)</h2>
                 <div class="upload-zone" id="uploadZone">
                     <p style="font-size: 3em; margin-bottom: 10px;">📄</p>
                     <p style="font-size: 1.2em; color: #667eea; margin-bottom: 10px;">
-                        Glissez votre PDF ici ou cliquez pour sélectionner
+                        Glissez un autre PDF ici ou cliquez pour sélectionner
                     </p>
                     <p style="color: #999; font-size: 0.9em;">
                         Le fichier sera indexé pour permettre la recherche sémantique
@@ -355,6 +374,11 @@ async def interface():
                 .then(data => {
                     if (data.indexed) {
                         activerRecherche(data.chunks_count);
+                        // Masquer la section upload si PDF déjà indexé
+                        document.getElementById('uploadSection').style.display = 'none';
+                    } else {
+                        // Afficher la section upload si pas de PDF
+                        document.getElementById('uploadSection').style.display = 'block';
                     }
                 });
             
