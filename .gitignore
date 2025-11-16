@@ -1,7 +1,21 @@
 __pycache__/
-*.pyc
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
 venv/
-index_pdf.pkl
+ENV/
+
+# Fichiers temporaires uniquement (on GARDE index_pdf.pkl et le PDF)
 temp_*.pdf
-*.pdf
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Système
 .DS_Store
+Thumbs.db
